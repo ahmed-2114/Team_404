@@ -1,6 +1,6 @@
 PID:2
-STATE:BLOCKED
-PC:0
+STATE:READY
+PC:2
 LOWER:15
 UPPER:29
 ARRIVAL:1
@@ -17,11 +17,11 @@ semSignal file
 INSTRUCTIONS_END
 MEMORY_START
 15,pid_2,2
-16,state_2,BLOCKED
-17,pc_2,0
+16,state_2,READY
+17,pc_2,2
 18,lower_2,15
 19,upper_2,29
-20,var_2_0,
+20,a,
 21,var_2_1,
 22,var_2_2,
 23,instr_2_0,semWait userInput

@@ -199,7 +199,9 @@ public class Main {
                 return false;
             }
 
-            clock++;
+            if (!gui.consumeInputRequestFlag()) {
+                clock++;
+            }
             return true;
         }
 

@@ -54,6 +54,7 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
     private BooleanSupplier stepHandler = () -> false;
     private Runnable resetHandler = () -> {};
     private int currentClock = 0;
+    private boolean inputRequestedThisCycle = false;
 
     // ── UI Components ──
     private JLabel clockLabel;
@@ -444,6 +445,7 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
 
     @Override
     public String requestInput(Process process, String prompt, String instruction) {
+        inputRequestedThisCycle = true;
         boolean wasAutoRunning = autoTimer != null && autoTimer.isRunning();
         stopAutoRun();
         setControlsPausedForInput();
@@ -515,6 +517,12 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
 
     public void notifyDiskEvent(String message) {
         log(message);
+    }
+
+    public boolean consumeInputRequestFlag() {
+        boolean requested = inputRequestedThisCycle;
+        inputRequestedThisCycle = false;
+        return requested;
     }
 
     // ── UI Helpers ──
