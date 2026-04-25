@@ -26,6 +26,7 @@ public class RRScheduler {
     // ✅ NEW: keep track of current running process
     private Process currentProcess = null;
     private int remainingQuantum = 0;
+    private Process pendingRequeueProcess = null;
 
     public RRScheduler(Ready readyQueue, Blocked blockedQueue,
                        Interpreter interpreter, Memory memory,
@@ -42,6 +43,10 @@ public class RRScheduler {
     }
 
     public void schedule(int clock) {
+        if (pendingRequeueProcess != null) {
+            readyQueue.add(pendingRequeueProcess);
+            pendingRequeueProcess = null;
+        }
 
         // 🟡 Step 1: pick new process if none is running
         if (currentProcess == null) {
@@ -107,7 +112,7 @@ public class RRScheduler {
                     + " time slice expired → moved to back of ready queue");
 
             currentProcess.getPcb().setState(PCB.ProcessState.READY);
-            readyQueue.add(currentProcess);
+            pendingRequeueProcess = currentProcess;
             currentProcess = null;
         }
 

@@ -533,6 +533,11 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
 
     public void logMlfqQueueSnapshot(String eventLabel, Queue<Process>[] queues) {
         log(eventLabel);
+        log("--- MLFQ QUEUES ---");
+        for (int i = 0; i < queues.length; i++) {
+            log(buildMlfqQueueConsoleLine(i, queues[i]));
+        }
+        log("-------------------");
         log(buildBlockedQueueConsoleLine());
     }
 
@@ -846,6 +851,19 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
     private String buildBlockedQueueConsoleLine() {
         StringBuilder builder = new StringBuilder("Blocked Queue: [ ");
         for (Process process : blockedQueue.getQueue()) {
+            builder.append("P").append(process.getPcb().getProcessID()).append(" ");
+        }
+        builder.append("]");
+        return builder.toString();
+    }
+
+    private String buildMlfqQueueConsoleLine(int level, Queue<Process> queue) {
+        StringBuilder builder = new StringBuilder("  Queue ")
+                .append(level)
+                .append(" (Q=")
+                .append(1 << level)
+                .append("): [ ");
+        for (Process process : queue) {
             builder.append("P").append(process.getPcb().getProcessID()).append(" ");
         }
         builder.append("]");
