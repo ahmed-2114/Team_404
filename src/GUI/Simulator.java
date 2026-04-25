@@ -405,6 +405,7 @@ public class Simulator extends JFrame {
     }
 
     public void log(String message) {
+        System.out.println(message);
         SwingUtilities.invokeLater(() -> {
             logArea.append(message + "\n");
             logArea.setCaretPosition(logArea.getDocument().getLength());
