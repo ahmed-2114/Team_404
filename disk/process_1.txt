@@ -1,0 +1,34 @@
+PID:1
+STATE:READY
+PC:6
+LOWER:17
+UPPER:31
+ARRIVAL:0
+BURST:7
+WAITING:0
+INSTRUCTIONS_START
+semWait userInput
+assign x input
+assign y input
+semSignal userInput
+semWait userOutput
+printFromTo x y
+semSignal userOutput
+INSTRUCTIONS_END
+MEMORY_START
+17,pid_1,1
+18,state_1,READY
+19,pc_1,6
+20,lower_1,17
+21,upper_1,31
+22,x,10
+23,y,20
+24,var_1_2,
+25,instr_1_0,semWait userInput
+26,instr_1_1,assign x input
+27,instr_1_2,assign y input
+28,instr_1_3,semSignal userInput
+29,instr_1_4,semWait userOutput
+30,instr_1_5,printFromTo x y
+31,instr_1_6,semSignal userOutput
+MEMORY_END
