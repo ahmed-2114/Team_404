@@ -14,9 +14,6 @@ import javax.swing.border.*;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -65,8 +62,6 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
     private JLabel schedulerLabel;
     private JTextArea logArea;
     private JTextArea outputArea;
-    private JTextArea memorySnapshotArea;
-    private JTextArea diskSnapshotArea;
     private JTable memoryTable;
     private DefaultTableModel memoryTableModel;
     private JPanel readyQueuePanel;
@@ -150,7 +145,7 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
         panel.setBackground(BG_DARK);
         panel.setBorder(new EmptyBorder(12, 12, 12, 6));
 
-        panel.add(sectionLabel("▸ MEMORY AND DISK"), BorderLayout.NORTH);
+        panel.add(sectionLabel("▸ MEMORY  [40 words]"), BorderLayout.NORTH);
 
         String[] cols = {"ADDR", "KEY", "VALUE"};
         memoryTableModel = new DefaultTableModel(cols, 0) {
@@ -161,26 +156,7 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
 
         JScrollPane scroll = new JScrollPane(memoryTable);
         styleScroll(scroll);
-
-        memorySnapshotArea = createTextArea();
-        memorySnapshotArea.setFont(new Font("Monospaced", Font.PLAIN, 10));
-        JScrollPane memorySnapshotScroll = new JScrollPane(memorySnapshotArea);
-        styleScroll(memorySnapshotScroll);
-
-        diskSnapshotArea = createTextArea();
-        diskSnapshotArea.setFont(new Font("Monospaced", Font.PLAIN, 10));
-        diskSnapshotArea.setForeground(new Color(255, 226, 184));
-        JScrollPane diskSnapshotScroll = new JScrollPane(diskSnapshotArea);
-        styleScroll(diskSnapshotScroll);
-
-        JTabbedPane tabs = new JTabbedPane();
-        tabs.setBackground(BG_PANEL);
-        tabs.setForeground(TEXT_PRIMARY);
-        tabs.setFont(FONT_SMALL);
-        tabs.addTab("Memory Grid", scroll);
-        tabs.addTab("Cycle Snapshot", memorySnapshotScroll);
-        tabs.addTab("Disk Format", diskSnapshotScroll);
-        panel.add(tabs, BorderLayout.CENTER);
+        panel.add(scroll, BorderLayout.CENTER);
 
         return panel;
     }
@@ -349,8 +325,6 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
     public void refresh() {
         SwingUtilities.invokeLater(() -> {
             updateMemoryTable();
-            updateMemorySnapshot();
-            updateDiskSnapshot();
             updateQueues();
             updateRunningProcess();
         });
@@ -451,12 +425,6 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
             if (outputArea != null) {
                 outputArea.setText("");
             }
-            if (memorySnapshotArea != null) {
-                memorySnapshotArea.setText("");
-            }
-            if (diskSnapshotArea != null) {
-                diskSnapshotArea.setText("");
-            }
         });
     }
 
@@ -543,12 +511,10 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
 
     public void logMemoryForClock(int clock) {
         currentClock = clock;
-        updateMemorySnapshot();
     }
 
     public void notifyDiskEvent(String message) {
         log(message);
-        updateDiskSnapshot();
     }
 
     // ── UI Helpers ──
@@ -776,67 +742,6 @@ public class Simulator extends JFrame implements Interpreter.ExecutionIO {
         System.out.println(prompt + ":");
         java.util.Scanner scanner = new java.util.Scanner(System.in);
         return scanner.nextLine();
-    }
-
-    private void updateMemorySnapshot() {
-        if (memorySnapshotArea == null || memory == null) {
-            return;
-        }
-
-        StringBuilder snapshot = new StringBuilder();
-        snapshot.append("Clock ").append(currentClock).append("\n");
-        snapshot.append("--------------------------------\n");
-
-        MemoryWord[] words = memory.getWords();
-        for (int index = 0; index < words.length; index++) {
-            MemoryWord word = words[index];
-            snapshot.append(String.format("[%02d] ", index));
-            if (word == null) {
-                snapshot.append("EMPTY");
-            } else {
-                snapshot.append(word.getKey()).append(" = ").append(word.getValue());
-            }
-            snapshot.append('\n');
-        }
-
-        String text = snapshot.toString();
-        SwingUtilities.invokeLater(() -> {
-            memorySnapshotArea.setText(text);
-            memorySnapshotArea.setCaretPosition(0);
-        });
-    }
-
-    private void updateDiskSnapshot() {
-        if (diskSnapshotArea == null) {
-            return;
-        }
-
-        File diskFolder = new File("disk");
-        StringBuilder snapshot = new StringBuilder();
-        snapshot.append("Disk files currently stored\n");
-        snapshot.append("--------------------------------\n");
-
-        File[] files = diskFolder.listFiles((dir, name) -> name.endsWith(".txt"));
-        if (files == null || files.length == 0) {
-            snapshot.append("Disk is empty. No swapped-out process blocks.\n");
-        } else {
-            java.util.Arrays.sort(files, java.util.Comparator.comparing(File::getName));
-            for (File file : files) {
-                snapshot.append(file.getName()).append('\n');
-                try {
-                    snapshot.append(Files.readString(file.toPath()).trim());
-                } catch (IOException e) {
-                    snapshot.append("<Could not read disk file>");
-                }
-                snapshot.append("\n\n");
-            }
-        }
-
-        String text = snapshot.toString();
-        SwingUtilities.invokeLater(() -> {
-            diskSnapshotArea.setText(text);
-            diskSnapshotArea.setCaretPosition(0);
-        });
     }
 
     private String buildReadyQueueConsoleLine() {

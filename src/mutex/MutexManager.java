@@ -8,6 +8,7 @@ import queues.Ready;
 import scheduler.MLFQScheduler;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class MutexManager {
 
@@ -15,11 +16,13 @@ public class MutexManager {
     private Blocked blockedQueue;
     private Ready readyQueue; // ✅ now properly used
     private MLFQScheduler mlfqScheduler = null;
+    private Consumer<String> logger;
 
     // ✅ FIX: add readyQueue parameter
     public MutexManager(Blocked blockedQueue, Ready readyQueue) {
         this.blockedQueue = blockedQueue;
         this.readyQueue = readyQueue;
+        this.logger = message -> {};
 
         mutexes = new HashMap<>();
 
@@ -28,11 +31,18 @@ public class MutexManager {
         mutexes.put("file", new Mutex("file"));
     }
 
+    public void setLogger(Consumer<String> logger) {
+        this.logger = logger != null ? logger : message -> {};
+        for (Mutex mutex : mutexes.values()) {
+            mutex.setLogger(this.logger);
+        }
+    }
+
     public boolean semWait(String resourceName, Process process) {
         Mutex mutex = mutexes.get(resourceName);
 
         if (mutex == null) {
-            System.out.println("[MUTEX ERROR] Unknown resource: " + resourceName);
+            emit("[MUTEX ERROR] Unknown resource: " + resourceName);
             return true;
         }
 
@@ -49,7 +59,7 @@ public class MutexManager {
         Mutex mutex = mutexes.get(resourceName);
 
         if (mutex == null) {
-            System.out.println("[MUTEX ERROR] Unknown resource: " + resourceName);
+            emit("[MUTEX ERROR] Unknown resource: " + resourceName);
             return;
         }
 
@@ -76,11 +86,16 @@ public class MutexManager {
     }
 
     public void printAllMutexStates() {
-        System.out.println("\n--- MUTEX STATES ---");
+        emit("\n--- MUTEX STATES ---");
         for (Mutex mutex : mutexes.values()) {
             mutex.printState();
         }
-        System.out.println("--------------------");
+        emit("--------------------");
+    }
+
+    private void emit(String message) {
+        System.out.println(message);
+        logger.accept(message);
     }
 }
 

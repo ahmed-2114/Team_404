@@ -109,6 +109,7 @@ public class Main {
             gui.setSchedulerName(schedulerName);
             interpreter.setExecutionIO(gui);
             diskManager.setEventLogger(gui::notifyDiskEvent);
+            mutexManager.setLogger(gui::log);
 
             RRScheduler rr = null;
             HRRNScheduler hrrn = null;
