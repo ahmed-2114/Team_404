@@ -32,7 +32,6 @@ public class Main {
     };
 
     public static void main(String[] args) {
-
         final String[] schedulerChoice = {null};
         final int[] timeSliceChoice = {2};
         final int[][] arrivalChoice = {null};
@@ -60,106 +59,159 @@ public class Main {
         int timeSlice        = timeSliceChoice[0];
         int[] arrivalTimes   = arrivalChoice[0];
 
-        Memory memory           = new Memory();
-        DiskManager diskManager = new DiskManager();
-        Blocked blockedQueue    = new Blocked();
-        Ready readyQueue        = new Ready();
-        MutexManager mutexManager = new MutexManager(blockedQueue, readyQueue);        Interpreter interpreter   = new Interpreter(memory, mutexManager);
-        List<Process> allProcesses = new ArrayList<>();
+        startSimulation(schedulerName, timeSlice, arrivalTimes);
+    }
 
-        Simulator gui = new Simulator(memory, readyQueue, blockedQueue, allProcesses);
-        gui.setSchedulerName(schedulerName);
+    private static void startSimulation(String schedulerName, int timeSlice, int[] arrivalTimes) {
+        new SimulationSession(schedulerName, timeSlice, arrivalTimes.clone());
+    }
 
-        RRScheduler rrScheduler     = null;
-        HRRNScheduler hrrnScheduler = null;
-        MLFQScheduler mlfqScheduler = null;
+    private static final class SimulationSession {
 
-        switch (schedulerName) {
-            case "RR":
-                rrScheduler = new RRScheduler(readyQueue, blockedQueue, interpreter, memory,
-                        diskManager, allProcesses, timeSlice, gui);
-                break;
-            case "HRRN":
-                hrrnScheduler = new HRRNScheduler(readyQueue, blockedQueue, interpreter, memory,
-                        diskManager, allProcesses, gui);
-                break;
-            case "MLFQ":
-                mlfqScheduler = new MLFQScheduler(blockedQueue, interpreter, memory,
-                        diskManager, allProcesses, gui);
-                mutexManager.setMLFQScheduler(mlfqScheduler);
-                break;
+        private final String schedulerName;
+        private final int timeSlice;
+        private final int[] arrivalTimes;
+
+        private final Memory memory;
+        private final DiskManager diskManager;
+        private final Blocked blockedQueue;
+        private final Ready readyQueue;
+        private final MutexManager mutexManager;
+        private final Interpreter interpreter;
+        private final List<Process> allProcesses;
+        private final Simulator gui;
+
+        private final RRScheduler rrScheduler;
+        private final HRRNScheduler hrrnScheduler;
+        private final MLFQScheduler mlfqScheduler;
+
+        private final boolean[] created;
+
+        private int pidCounter = 1;
+        private int clock = 0;
+        private boolean finished;
+
+        private SimulationSession(String schedulerName, int timeSlice, int[] arrivalTimes) {
+            this.schedulerName = schedulerName;
+            this.timeSlice = timeSlice;
+            this.arrivalTimes = arrivalTimes;
+
+            memory = new Memory();
+            diskManager = new DiskManager();
+            blockedQueue = new Blocked();
+            readyQueue = new Ready();
+            mutexManager = new MutexManager(blockedQueue, readyQueue);
+            interpreter = new Interpreter(memory, mutexManager);
+            allProcesses = new ArrayList<>();
+            created = new boolean[arrivalTimes.length];
+
+            gui = new Simulator(memory, readyQueue, blockedQueue, allProcesses);
+            gui.setSchedulerName(schedulerName);
+
+            RRScheduler rr = null;
+            HRRNScheduler hrrn = null;
+            MLFQScheduler mlfq = null;
+
+            switch (schedulerName) {
+                case "RR":
+                    rr = new RRScheduler(readyQueue, blockedQueue, interpreter, memory,
+                            diskManager, allProcesses, timeSlice, gui);
+                    break;
+                case "HRRN":
+                    hrrn = new HRRNScheduler(readyQueue, blockedQueue, interpreter, memory,
+                            diskManager, allProcesses, gui);
+                    break;
+                case "MLFQ":
+                    mlfq = new MLFQScheduler(blockedQueue, interpreter, memory,
+                            diskManager, allProcesses, gui);
+                    mutexManager.setMLFQScheduler(mlfq);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported scheduler: " + schedulerName);
+            }
+
+            rrScheduler = rr;
+            hrrnScheduler = hrrn;
+            mlfqScheduler = mlfq;
+
+            gui.setStepHandler(this::stepCycle);
+            gui.setResetHandler(this::resetSimulation);
+
+            logSessionHeader();
+            gui.setClockValue(clock);
+            gui.refresh();
         }
 
-        final RRScheduler   finalRR   = rrScheduler;
-        final HRRNScheduler finalHRRN = hrrnScheduler;
-        final MLFQScheduler finalMLFQ = mlfqScheduler;
+        private boolean stepCycle() {
+            if (finished) {
+                return false;
+            }
 
-        int pidCounter = 1;
-        int clock = 0;
+            gui.log("---------- Clock Cycle: " + clock + " ----------");
+            gui.setClockValue(clock);
 
-        // ✅ FIX 1: track created processes
-        boolean[] created = new boolean[arrivalTimes.length];
-
-        gui.log("========== OS SIMULATOR STARTED ==========");
-        gui.log("Scheduler : " + schedulerName);
-        if (!schedulerName.equals("HRRN")) gui.log("Time Slice : " + timeSlice);
-        gui.log("Arrivals  : P1@" + arrivalTimes[0] + "  P2@" + arrivalTimes[1] + "  P3@" + arrivalTimes[2]);
-        gui.log("==========================================\n");
-
-        while (true) {
-
-            final int currentClock = clock;
-            gui.log("---------- Clock Cycle: " + currentClock + " ----------");
-
-            SwingUtilities.invokeLater(() -> gui.setClockValue(currentClock));
-
-            // ✅ FIXED ARRIVAL LOGIC
             for (int i = 0; i < arrivalTimes.length; i++) {
                 if (!created[i] && arrivalTimes[i] <= clock) {
-                    
-
-                	Process p = createProcess(pidCounter, PROGRAM_FILES[i], clock,
+                    Process process = createProcess(pidCounter, PROGRAM_FILES[i], clock,
                             memory, diskManager, allProcesses, gui);
 
-                    if (p != null) {
-                    	pidCounter++;
-                    	created[i] = true;
-                        if (finalMLFQ != null) {
-                            allProcesses.add(p);
-                            finalMLFQ.addProcess(p);
+                    if (process != null) {
+                        pidCounter++;
+                        created[i] = true;
+                        if (mlfqScheduler != null) {
+                            allProcesses.add(process);
+                            mlfqScheduler.addProcess(process);
                         } else {
-                            readyQueue.add(p);
-                            allProcesses.add(p);
+                            readyQueue.add(process);
+                            allProcesses.add(process);
                         }
 
-                        gui.log("[ARRIVAL] P" + p.getPcb().getProcessID()
+                        gui.log("[ARRIVAL] P" + process.getPcb().getProcessID()
                                 + " arrived → added to ready queue");
                         gui.refresh();
                     }
                 }
             }
 
-            if (finalRR   != null) finalRR.schedule(clock);
-            if (finalHRRN != null) finalHRRN.schedule(clock);
-            if (finalMLFQ != null) finalMLFQ.schedule(clock);
+            if (rrScheduler != null) rrScheduler.schedule(clock);
+            if (hrrnScheduler != null) hrrnScheduler.schedule(clock);
+            if (mlfqScheduler != null) mlfqScheduler.schedule(clock);
 
             boolean allCreated = true;
-            for (boolean c : created) if (!c) { allCreated = false; break; }
+            for (boolean wasCreated : created) {
+                if (!wasCreated) {
+                    allCreated = false;
+                    break;
+                }
+            }
 
             if (allCreated && allFinished(allProcesses)) {
+                finished = true;
+                gui.setRunningProcess(null, "");
                 gui.log("\n========== ALL PROCESSES FINISHED ==========");
+                gui.log("[SIMULATION] Clock stopped.");
                 gui.refresh();
-                break;
+                return false;
             }
 
             clock++;
-
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ignored) {}
+            return true;
         }
 
-        gui.log("[SIMULATION] Clock stopped.");
+        private void resetSimulation() {
+            gui.dispose();
+            startSimulation(schedulerName, timeSlice, arrivalTimes);
+        }
+
+        private void logSessionHeader() {
+            gui.log("========== OS SIMULATOR STARTED ==========");
+            gui.log("Scheduler : " + schedulerName);
+            if (!schedulerName.equals("HRRN")) {
+                gui.log("Time Slice : " + timeSlice);
+            }
+            gui.log("Arrivals  : P1@" + arrivalTimes[0] + "  P2@" + arrivalTimes[1] + "  P3@" + arrivalTimes[2]);
+            gui.log("==========================================\n");
+        }
     }
 
     private static Process createProcess(int pid, String filename, int clock,

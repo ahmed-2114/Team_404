@@ -69,6 +69,7 @@ public class MLFQScheduler {
         }
 
         if (level == -1) {
+            gui.setRunningProcess(null, "");
             gui.log("[MLFQ] No processes to schedule at clock " + clock);
             return;
         }
@@ -76,6 +77,7 @@ public class MLFQScheduler {
         Process selected = queues[level].poll();
         if (!diskManager.ensureResident(selected, memory, allProcesses)) {
             gui.log("[MLFQ] Failed to restore P" + selected.getPcb().getProcessID() + " from disk");
+            gui.setRunningProcess(null, "");
             return;
         }
         selected.getPcb().setState(PCB.ProcessState.RUNNING);
@@ -103,6 +105,7 @@ public class MLFQScheduler {
 
             if (!executed) {
                 gui.log("[MLFQ] P" + selected.getPcb().getProcessID() + " is BLOCKED");
+                gui.setRunningProcess(null, "");
                 printQueues();
                 return;
             }

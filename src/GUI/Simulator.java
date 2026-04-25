@@ -15,6 +15,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 public class Simulator extends JFrame {
 
@@ -45,10 +46,11 @@ public class Simulator extends JFrame {
     private List<Process> allProcesses;
     
 
-    private int clock = 0;
     private Process runningProcess = null;
     private String currentInstruction = "";
     private String schedulerName = "Round Robin";
+    private BooleanSupplier stepHandler = () -> false;
+    private Runnable resetHandler = () -> {};
 
     // ── UI Components ──
     private JLabel clockLabel;
@@ -272,10 +274,9 @@ public class Simulator extends JFrame {
         stepButton.addActionListener(e -> onStep());
 
         resetButton.addActionListener(e -> {
-            autoTimer.stop();
-            clock = 0;
+            stopAutoRun();
             logArea.setText("");
-            refresh();
+            resetHandler.run();
             runButton.setEnabled(true);
             pauseButton.setEnabled(false);
             stepButton.setEnabled(true);
@@ -291,10 +292,12 @@ public class Simulator extends JFrame {
 
     // ── Called when step button is pressed or auto-timer fires ──
     private void onStep() {
-        clock++;
-        clockLabel.setText("CLOCK: " + clock);
-        refresh();
-        log("── Clock " + clock + " ──");
+        if (!stepHandler.getAsBoolean()) {
+            stopAutoRun();
+            runButton.setEnabled(false);
+            pauseButton.setEnabled(false);
+            stepButton.setEnabled(false);
+        }
     }
 
     // ── Refresh all UI components from current state ──
@@ -370,6 +373,35 @@ public class Simulator extends JFrame {
     public void setSchedulerName(String name) {
         this.schedulerName = name;
         schedulerLabel.setText(name);
+    }
+
+    public void setStepHandler(BooleanSupplier stepHandler) {
+        this.stepHandler = stepHandler != null ? stepHandler : () -> false;
+    }
+
+    public void setResetHandler(Runnable resetHandler) {
+        this.resetHandler = resetHandler != null ? resetHandler : () -> {};
+    }
+
+    public void bindSimulationState(Memory memory, Ready readyQueue, Blocked blockedQueue,
+                                    List<Process> allProcesses) {
+        this.memory = memory;
+        this.readyQueue = readyQueue;
+        this.blockedQueue = blockedQueue;
+        this.allProcesses = allProcesses;
+        this.runningProcess = null;
+        this.currentInstruction = "";
+        updateRunningProcess();
+    }
+
+    public void clearLog() {
+        SwingUtilities.invokeLater(() -> logArea.setText(""));
+    }
+
+    public void stopAutoRun() {
+        if (autoTimer != null && autoTimer.isRunning()) {
+            autoTimer.stop();
+        }
     }
 
     public void log(String message) {

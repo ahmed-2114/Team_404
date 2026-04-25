@@ -46,6 +46,7 @@ public class RRScheduler {
         // 🟡 Step 1: pick new process if none is running
         if (currentProcess == null) {
             if (readyQueue.isEmpty()) {
+                gui.setRunningProcess(null, "");
                 gui.log("[RR] No processes in ready queue at clock " + clock);
                 return;
             }
@@ -53,6 +54,7 @@ public class RRScheduler {
             currentProcess = readyQueue.poll();
             if (!diskManager.ensureResident(currentProcess, memory, allProcesses)) {
                 gui.log("[RR] Failed to restore P" + currentProcess.getPcb().getProcessID() + " from disk");
+                gui.setRunningProcess(null, "");
                 currentProcess = null;
                 return;
             }
@@ -79,6 +81,7 @@ public class RRScheduler {
             // 🔴 Case: BLOCKED
             if (!executed) {
                 gui.log("[RR] P" + currentProcess.getPcb().getProcessID() + " is BLOCKED");
+                gui.setRunningProcess(null, "");
                 currentProcess = null; // release CPU
                 return;
             }
@@ -95,6 +98,7 @@ public class RRScheduler {
             memory.free(currentProcess.getPcb().getLowerBound(),
                         currentProcess.getPcb().getUpperBound());
 
+            gui.setRunningProcess(null, "");
             currentProcess = null;
         }
 

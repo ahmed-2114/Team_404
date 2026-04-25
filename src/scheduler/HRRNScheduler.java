@@ -34,6 +34,7 @@ public class HRRNScheduler {
 
     public void schedule(int clock) {
         if (readyQueue.isEmpty()) {
+            gui.setRunningProcess(null, "");
             gui.log("[HRRN] No processes in ready queue at clock " + clock);
             return;
         }
@@ -51,6 +52,7 @@ public class HRRNScheduler {
         readyQueue.remove(selected);
         if (!diskManager.ensureResident(selected, memory, allProcesses)) {
             gui.log("[HRRN] Failed to restore P" + selected.getPcb().getProcessID() + " from disk");
+            gui.setRunningProcess(null, "");
             return;
         }
 
@@ -77,6 +79,7 @@ public class HRRNScheduler {
             if (!executed) {
                 // Process got blocked on a mutex
                 gui.log("[HRRN] P" + selected.getPcb().getProcessID() + " is BLOCKED");
+                gui.setRunningProcess(null, "");
                 printQueues();
                 return;
             }
