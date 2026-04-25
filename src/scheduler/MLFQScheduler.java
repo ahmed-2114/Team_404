@@ -70,7 +70,7 @@ public class MLFQScheduler {
 
         if (level == -1) {
             gui.setRunningProcess(null, "");
-            gui.log("[MLFQ] No processes to schedule at clock " + clock);
+            gui.logMlfqQueueSnapshot("[MLFQ] No processes to schedule at clock " + clock, queues);
             return;
         }
 
@@ -83,12 +83,10 @@ public class MLFQScheduler {
         selected.getPcb().setState(PCB.ProcessState.RUNNING);
         int quantum = quantums[level];
 
-        gui.log("[MLFQ] Clock " + clock + " -> Running: P"
+        gui.logMlfqQueueSnapshot("[MLFQ] Clock " + clock + " -> Running: P"
                 + selected.getPcb().getProcessID()
                 + " from Queue " + level
-                + " | Quantum: " + quantum);
-
-        printQueues();
+            + " | Quantum: " + quantum, queues);
 
         int instructionsExecuted = 0;
 
@@ -104,9 +102,8 @@ public class MLFQScheduler {
             gui.log("[P" + selected.getPcb().getProcessID() + "] -> " + instr);
 
             if (!executed) {
-                gui.log("[MLFQ] P" + selected.getPcb().getProcessID() + " is BLOCKED");
+                gui.logMlfqQueueSnapshot("[MLFQ] P" + selected.getPcb().getProcessID() + " is BLOCKED", queues);
                 gui.setRunningProcess(null, "");
-                printQueues();
                 return;
             }
 
@@ -115,7 +112,7 @@ public class MLFQScheduler {
 
         if (!selected.hasNextInstruction()) {
             selected.getPcb().setState(PCB.ProcessState.FINISHED);
-            gui.log("[MLFQ] P" + selected.getPcb().getProcessID() + " FINISHED");
+            gui.logMlfqQueueSnapshot("[MLFQ] P" + selected.getPcb().getProcessID() + " FINISHED", queues);
             gui.setRunningProcess(null, "");
             memory.free(selected.getPcb().getLowerBound(), selected.getPcb().getUpperBound());
         } else {
@@ -123,11 +120,10 @@ public class MLFQScheduler {
             int nextLevel = Math.min(level + 1, levels - 1);
             selected.getPcb().setState(PCB.ProcessState.READY);
             queues[nextLevel].add(selected);
-            gui.log("[MLFQ] P" + selected.getPcb().getProcessID()
-                    + " demoted to Queue " + nextLevel);
+                gui.logMlfqQueueSnapshot("[MLFQ] P" + selected.getPcb().getProcessID()
+                    + " demoted to Queue " + nextLevel, queues);
         }
 
-        printQueues();
         gui.refresh();
     }
 
@@ -137,22 +133,6 @@ public class MLFQScheduler {
         }
         return true;
     }
-
-    private void printQueues() {
-        StringBuilder sb = new StringBuilder("--- MLFQ QUEUES ---\n");
-        for (int i = 0; i < levels; i++) {
-            sb.append("  Queue ").append(i).append(" (Q=").append(quantums[i]).append("): [ ");
-            for (Process p : queues[i]) {
-                sb.append("P").append(p.getPcb().getProcessID()).append(" ");
-            }
-            sb.append("]\n");
-        }
-        sb.append("-------------------");
-        gui.log(sb.toString());
-        blockedQueue.print();
-        gui.refresh();
-    }
-
     public Queue<Process>[] getQueues() {
         return queues;
     }

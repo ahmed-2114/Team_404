@@ -5,11 +5,13 @@ import process.PCB;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 
 public class DiskManager {
 
     private static final String DISK_FOLDER = "disk/";
+    private Consumer<String> eventLogger;
 
     public DiskManager() {
         // Create the disk folder if it doesn't exist
@@ -17,6 +19,11 @@ public class DiskManager {
         if (!folder.exists()) {
             folder.mkdir();
         }
+        eventLogger = message -> {};
+    }
+
+    public void setEventLogger(Consumer<String> eventLogger) {
+        this.eventLogger = eventLogger != null ? eventLogger : message -> {};
     }
 
     // Save a process's memory block to disk as a text file
@@ -59,10 +66,10 @@ public class DiskManager {
             writer.write("MEMORY_END"); writer.newLine();
 
             process.setOnDisk(true);
-            System.out.println("[DISK] Process " + pid + " saved to disk → " + filename);
+            emit("[SWAP OUT] P" + pid + " saved to " + filename);
 
         } catch (IOException e) {
-            System.out.println("[DISK ERROR] Could not save process " + pid + ": " + e.getMessage());
+            emit("[DISK ERROR] Could not save process " + pid + ": " + e.getMessage());
         }
     }
 
@@ -75,8 +82,8 @@ public class DiskManager {
         while (memory.allocate(requiredSize) == -1) {
             Process victim = findSwapVictim(allProcesses, process);
             if (victim == null) {
-                System.out.println("[DISK ERROR] No available victim to swap out for process "
-                        + process.getPcb().getProcessID());
+                emit("[DISK ERROR] No available victim to swap out for process "
+                    + process.getPcb().getProcessID());
                 return false;
             }
 
@@ -111,7 +118,7 @@ public class DiskManager {
         File file = new File(filename);
 
         if (!file.exists()) {
-            System.out.println("[DISK ERROR] No disk file found for process " + process.getPcb().getProcessID());
+            emit("[DISK ERROR] No disk file found for process " + process.getPcb().getProcessID());
             return false;
         }
 
@@ -135,7 +142,7 @@ public class DiskManager {
             int blockSize = upper - lower + 1;
             int newLower = memory.allocate(blockSize);
             if (newLower == -1) {
-                System.out.println("[DISK ERROR] Not enough memory to load process " + readPID);
+                emit("[DISK ERROR] Not enough memory to load process " + readPID);
                 return false;
             }
             int newUpper = newLower + blockSize - 1;
@@ -158,13 +165,13 @@ public class DiskManager {
             process.getPcb().setState(PCB.ProcessState.valueOf(stateStr));
             process.setOnDisk(false);
 
-            System.out.println("[DISK] Process " + readPID + " loaded from disk into memory ["
+                emit("[SWAP IN] P" + readPID + " restored into memory ["
                     + newLower + "-" + newUpper + "]");
 
             file.delete();
             return true;
         } catch (IOException e) {
-            System.out.println("[DISK ERROR] Could not load process " + process.getPcb().getProcessID()
+                emit("[DISK ERROR] Could not load process " + process.getPcb().getProcessID()
                     + ": " + e.getMessage());
             return false;
         }
@@ -176,7 +183,7 @@ public class DiskManager {
         File file = new File(filename);
 
         if (!file.exists()) {
-            System.out.println("[DISK ERROR] No disk file found for process " + pid);
+            emit("[DISK ERROR] No disk file found for process " + pid);
             return null;
         }
 
@@ -203,7 +210,7 @@ public class DiskManager {
             // Try to allocate memory for the process
             int newLower = memory.allocate(upper - lower + 1);
             if (newLower == -1) {
-                System.out.println("[DISK ERROR] Not enough memory to load process " + pid);
+                emit("[DISK ERROR] Not enough memory to load process " + pid);
                 return null;
             }
             int newUpper = newLower + (upper - lower) ;
@@ -230,7 +237,7 @@ public class DiskManager {
             Process process = new Process(pcb, instructions);
             process.setOnDisk(false);
 
-            System.out.println("[DISK] Process " + pid + " loaded from disk into memory [" + newLower + "-" + newUpper + "]");
+            emit("[SWAP IN] P" + pid + " restored into memory [" + newLower + "-" + newUpper + "]");
 
             // Delete disk file after loading
             file.delete();
@@ -238,7 +245,7 @@ public class DiskManager {
             return process;
 
         } catch (IOException e) {
-            System.out.println("[DISK ERROR] Could not load process " + pid + ": " + e.getMessage());
+            emit("[DISK ERROR] Could not load process " + pid + ": " + e.getMessage());
             return null;
         }
     }
@@ -246,5 +253,10 @@ public class DiskManager {
     // Check if a process has a disk file
     public boolean isOnDisk(int pid) {
         return new File(DISK_FOLDER + "process_" + pid + ".txt").exists();
+    }
+
+    private void emit(String message) {
+        System.out.println(message);
+        eventLogger.accept(message);
     }
 }

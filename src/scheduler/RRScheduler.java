@@ -47,7 +47,7 @@ public class RRScheduler {
         if (currentProcess == null) {
             if (readyQueue.isEmpty()) {
                 gui.setRunningProcess(null, "");
-                gui.log("[RR] No processes in ready queue at clock " + clock);
+                gui.logQueueSnapshot("[RR] No processes in ready queue at clock " + clock);
                 return;
             }
 
@@ -61,14 +61,13 @@ public class RRScheduler {
             currentProcess.getPcb().setState(PCB.ProcessState.RUNNING);
             remainingQuantum = timeSlice;
 
-            gui.log("[RR] Clock " + clock + " → Running: P"
+                gui.logQueueSnapshot("[RR] Clock " + clock + " → Running: P"
                     + currentProcess.getPcb().getProcessID()
                     + " | Time Slice: " + timeSlice);
         }
 
         // 🟡 Step 2: show running process
         gui.setRunningProcess(currentProcess, currentProcess.getCurrentInstruction());
-        printQueues();
 
         // 🟡 Step 3: execute ONE instruction
         if (currentProcess.hasNextInstruction()) {
@@ -80,7 +79,7 @@ public class RRScheduler {
 
             // 🔴 Case: BLOCKED
             if (!executed) {
-                gui.log("[RR] P" + currentProcess.getPcb().getProcessID() + " is BLOCKED");
+                gui.logQueueSnapshot("[RR] P" + currentProcess.getPcb().getProcessID() + " is BLOCKED");
                 gui.setRunningProcess(null, "");
                 currentProcess = null; // release CPU
                 return;
@@ -93,7 +92,7 @@ public class RRScheduler {
         if (!currentProcess.hasNextInstruction()) {
             currentProcess.getPcb().setState(PCB.ProcessState.FINISHED);
 
-            gui.log("[RR] P" + currentProcess.getPcb().getProcessID() + " FINISHED");
+            gui.logQueueSnapshot("[RR] P" + currentProcess.getPcb().getProcessID() + " FINISHED");
 
             memory.free(currentProcess.getPcb().getLowerBound(),
                         currentProcess.getPcb().getUpperBound());
@@ -104,7 +103,7 @@ public class RRScheduler {
 
         // 🟡 Case 2: quantum finished → move to back
         else if (remainingQuantum == 0) {
-            gui.log("[RR] P" + currentProcess.getPcb().getProcessID()
+            gui.logQueueSnapshot("[RR] P" + currentProcess.getPcb().getProcessID()
                     + " time slice expired → moved to back of ready queue");
 
             currentProcess.getPcb().setState(PCB.ProcessState.READY);
@@ -113,7 +112,6 @@ public class RRScheduler {
         }
 
         gui.refresh();
-        printQueues();
     }
 
     public void setTimeSlice(int timeSlice) {
@@ -122,12 +120,6 @@ public class RRScheduler {
 
     public int getTimeSlice() {
         return timeSlice;
-    }
-
-    private void printQueues() {
-        readyQueue.print();
-        blockedQueue.print();
-        gui.refresh();
     }
 }
 

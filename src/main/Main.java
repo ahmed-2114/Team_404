@@ -108,6 +108,7 @@ public class Main {
             gui = new Simulator(memory, readyQueue, blockedQueue, allProcesses);
             gui.setSchedulerName(schedulerName);
             interpreter.setExecutionIO(gui);
+            diskManager.setEventLogger(gui::notifyDiskEvent);
 
             RRScheduler rr = null;
             HRRNScheduler hrrn = null;
@@ -150,6 +151,7 @@ public class Main {
 
             gui.log("---------- Clock Cycle: " + clock + " ----------");
             gui.setClockValue(clock);
+            gui.logMemoryForClock(clock);
 
             for (int i = 0; i < arrivalTimes.length; i++) {
                 if (!created[i] && arrivalTimes[i] <= clock) {
@@ -191,6 +193,7 @@ public class Main {
                 gui.setRunningProcess(null, "");
                 gui.log("\n========== ALL PROCESSES FINISHED ==========");
                 gui.log("[SIMULATION] Clock stopped.");
+                gui.logMemoryForClock(clock);
                 gui.refresh();
                 return false;
             }

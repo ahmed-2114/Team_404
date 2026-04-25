@@ -35,7 +35,7 @@ public class HRRNScheduler {
     public void schedule(int clock) {
         if (readyQueue.isEmpty()) {
             gui.setRunningProcess(null, "");
-            gui.log("[HRRN] No processes in ready queue at clock " + clock);
+            gui.logQueueSnapshot("[HRRN] No processes in ready queue at clock " + clock);
             return;
         }
 
@@ -58,10 +58,8 @@ public class HRRNScheduler {
 
         selected.getPcb().setState(PCB.ProcessState.RUNNING);
 
-        gui.log("[HRRN] Clock " + clock + " -> Selected: P" + selected.getPcb().getProcessID()
-                + " (Response Ratio: " + String.format("%.2f", selected.getPcb().getResponseRatio()) + ")");
-
-        printQueues();
+        gui.logQueueSnapshot("[HRRN] Clock " + clock + " -> Selected: P" + selected.getPcb().getProcessID()
+            + " (Response Ratio: " + String.format("%.2f", selected.getPcb().getResponseRatio()) + ")");
 
         // HRRN is non-preemptive: run until the process finishes or blocks
         while (selected.hasNextInstruction()) {
@@ -78,16 +76,15 @@ public class HRRNScheduler {
 
             if (!executed) {
                 // Process got blocked on a mutex
-                gui.log("[HRRN] P" + selected.getPcb().getProcessID() + " is BLOCKED");
+                gui.logQueueSnapshot("[HRRN] P" + selected.getPcb().getProcessID() + " is BLOCKED");
                 gui.setRunningProcess(null, "");
-                printQueues();
                 return;
             }
         }
 
         // Process finished all instructions
         selected.getPcb().setState(PCB.ProcessState.FINISHED);
-        gui.log("[HRRN] P" + selected.getPcb().getProcessID() + " FINISHED");
+        gui.logQueueSnapshot("[HRRN] P" + selected.getPcb().getProcessID() + " FINISHED");
 
         // Clear the running display
         gui.setRunningProcess(null, "");
@@ -95,7 +92,6 @@ public class HRRNScheduler {
         // Free memory
         memory.free(selected.getPcb().getLowerBound(), selected.getPcb().getUpperBound());
 
-        printQueues();
         gui.refresh();
     }
 
@@ -113,11 +109,5 @@ public class HRRNScheduler {
         }
 
         return best;
-    }
-
-    private void printQueues() {
-        readyQueue.print();
-        blockedQueue.print();
-        gui.refresh();
     }
 }
