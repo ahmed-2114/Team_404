@@ -12,14 +12,27 @@ import java.util.Scanner;
 
 public class Interpreter {
 
+    public interface ExecutionIO {
+        String requestInput(Process process, String prompt, String instruction);
+        void showProgramOutput(Process process, String output);
+        void showExecutionEvent(String message);
+        void showError(String message);
+    }
+
     private Memory memory;
     private MutexManager mutexManager;
     private Scanner scanner;
+    private ExecutionIO executionIO;
 
     public Interpreter(Memory memory, MutexManager mutexManager) {
         this.memory = memory;
         this.mutexManager = mutexManager;
         this.scanner = new Scanner(System.in);
+        this.executionIO = new ConsoleExecutionIO();
+    }
+
+    public void setExecutionIO(ExecutionIO executionIO) {
+        this.executionIO = executionIO != null ? executionIO : new ConsoleExecutionIO();
     }
 
     // Execute the current instruction of a process
@@ -29,7 +42,7 @@ public class Interpreter {
         if (instruction == null) return false;
 
         int pid = process.getPcb().getProcessID();
-        System.out.println("[P" + pid + "] Executing: " + instruction);
+        executionIO.showExecutionEvent("[P" + pid + "] Executing: " + instruction);
 
         String[] parts = instruction.trim().split("\\s+", 3);
         String command = parts[0];
@@ -78,7 +91,7 @@ public class Interpreter {
                 boolean acquired = mutexManager.semWait(parts[1], process);
                 if (!acquired) {
                     // Process is blocked, do not increment PC
-                    System.out.println("[P" + pid + "] BLOCKED waiting for resource: " + parts[1]);
+                    executionIO.showExecutionEvent("[P" + pid + "] BLOCKED waiting for resource: " + parts[1]);
                     return false;
                 }
                 break;
@@ -90,7 +103,7 @@ public class Interpreter {
                 mutexManager.semSignal(parts[1], process);
                 break;
             default:
-                System.out.println("[P" + pid + "] Unknown instruction: " + instruction);
+                executionIO.showError("[P" + pid + "] Unknown instruction: " + instruction);
         }
 
         // Move program counter forward
@@ -108,7 +121,7 @@ public class Interpreter {
             }
             return content.toString().trim();
         } catch (IOException e) {
-            System.out.println("[ERROR] Could not read file: " + filename);
+            executionIO.showError("[ERROR] Could not read file: " + filename);
             return "";
         }
     }
@@ -118,7 +131,7 @@ public class Interpreter {
             return true;
         }
 
-        System.out.println("[P" + process.getPcb().getProcessID() + "] Malformed instruction: " + instruction);
+        executionIO.showError("[P" + process.getPcb().getProcessID() + "] Malformed instruction: " + instruction);
         return false;
     }
 
@@ -136,8 +149,9 @@ public class Interpreter {
         String value = parts[2];
 
         if (value.equals("input")) {
-            System.out.println("Please enter a value:");
-            value = scanner.nextLine();
+            value = executionIO.requestInput(process,
+                    "Enter a value for " + varName,
+                    process.getCurrentInstruction());
         } else if (value.startsWith("readFile ")) {
             String filenameVar = value.substring("readFile ".length()).trim();
             String filename = resolveValue(process, filenameVar);
@@ -151,7 +165,7 @@ public class Interpreter {
 
     // print x  →  print value of variable x
     private void handlePrint(Process process, String[] parts) {
-        System.out.println(resolveValue(process, parts[1]));
+        executionIO.showProgramOutput(process, resolveValue(process, parts[1]));
     }
 
     // writeFile x y  →  write value of variable y to file named by variable x
@@ -162,9 +176,9 @@ public class Interpreter {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
             writer.write(data);
             writer.newLine();
-            System.out.println("[P" + process.getPcb().getProcessID() + "] Wrote to file: " + filename);
+            executionIO.showExecutionEvent("[P" + process.getPcb().getProcessID() + "] Saved output to " + filename);
         } catch (IOException e) {
-            System.out.println("[ERROR] Could not write to file: " + filename);
+            executionIO.showError("[ERROR] Could not write to file: " + filename);
         }
     }
 
@@ -172,7 +186,8 @@ public class Interpreter {
     private void handleReadFile(Process process, String[] parts) {
         String filename = resolveValue(process, parts[1]);
         String content = readFileContents(filename);
-        System.out.println("[P" + process.getPcb().getProcessID() + "] File contents:\n" + content);
+        executionIO.showProgramOutput(process,
+                "Read from " + filename + ":\n" + content);
         writeVariable(process, "readOutput", content);
     }
 
@@ -184,11 +199,16 @@ public class Interpreter {
         try {
             int from = Integer.parseInt(fromStr.trim());
             int to = Integer.parseInt(toStr.trim());
+            StringBuilder builder = new StringBuilder();
             for (int i = from; i <= to; i++) {
-                System.out.println(i);
+                if (builder.length() > 0) {
+                    builder.append(' ');
+                }
+                builder.append(i);
             }
+            executionIO.showProgramOutput(process, builder.toString());
         } catch (NumberFormatException e) {
-            System.out.println("[ERROR] printFromTo requires integer values.");
+            executionIO.showError("[ERROR] printFromTo requires integer values.");
         }
     }
 
@@ -217,7 +237,7 @@ public class Interpreter {
             return;
         }
 
-        System.out.println("[ERROR] No memory space for variable: " + varName);
+        executionIO.showError("[ERROR] No memory space for variable: " + varName);
     }
 
     // Read a variable's value from the process's memory block
@@ -233,5 +253,28 @@ public class Interpreter {
             }
         }
         return null;
+    }
+
+    private final class ConsoleExecutionIO implements ExecutionIO {
+        @Override
+        public String requestInput(Process process, String prompt, String instruction) {
+            System.out.println(prompt + ":");
+            return scanner.nextLine();
+        }
+
+        @Override
+        public void showProgramOutput(Process process, String output) {
+            System.out.println(output);
+        }
+
+        @Override
+        public void showExecutionEvent(String message) {
+            System.out.println(message);
+        }
+
+        @Override
+        public void showError(String message) {
+            System.out.println(message);
+        }
     }
 }

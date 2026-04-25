@@ -1,8 +1,8 @@
 PID:2
-STATE:READY
-PC:3
-LOWER:17
-UPPER:31
+STATE:BLOCKED
+PC:0
+LOWER:15
+UPPER:29
 ARRIVAL:1
 BURST:7
 WAITING:0
@@ -16,19 +16,19 @@ writeFile a b
 semSignal file
 INSTRUCTIONS_END
 MEMORY_START
-17,pid_2,2
-18,state_2,READY
-19,pc_2,3
-20,lower_2,17
-21,upper_2,31
-22,a,nwek
-23,b,kb
-24,var_2_2,
-25,instr_2_0,semWait userInput
-26,instr_2_1,assign a input
-27,instr_2_2,assign b input
-28,instr_2_3,semSignal userInput
-29,instr_2_4,semWait file
-30,instr_2_5,writeFile a b
-31,instr_2_6,semSignal file
+15,pid_2,2
+16,state_2,BLOCKED
+17,pc_2,0
+18,lower_2,15
+19,upper_2,29
+20,var_2_0,
+21,var_2_1,
+22,var_2_2,
+23,instr_2_0,semWait userInput
+24,instr_2_1,assign a input
+25,instr_2_2,assign b input
+26,instr_2_3,semSignal userInput
+27,instr_2_4,semWait file
+28,instr_2_5,writeFile a b
+29,instr_2_6,semSignal file
 MEMORY_END

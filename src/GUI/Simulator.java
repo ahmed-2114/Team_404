@@ -1,5 +1,6 @@
 package GUI;
 
+import interpreter.Interpreter;
 import memory.Memory;
 
 import memory.MemoryWord;
@@ -17,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
-public class Simulator extends JFrame {
+public class Simulator extends JFrame implements Interpreter.ExecutionIO {
 
     // ── Color Palette ──
     private static final Color BG_DARK       = new Color(10, 12, 18);
@@ -58,6 +59,7 @@ public class Simulator extends JFrame {
     private JLabel instructionLabel;
     private JLabel schedulerLabel;
     private JTextArea logArea;
+    private JTextArea outputArea;
     private JTable memoryTable;
     private DefaultTableModel memoryTableModel;
     private JPanel readyQueuePanel;
@@ -173,26 +175,52 @@ public class Simulator extends JFrame {
         top.add(buildQueueCard("▸ BLOCKED QUEUE", ACCENT_RED, false));
         panel.add(top, BorderLayout.NORTH);
 
-        // Bottom: log
+        JSplitPane bottom = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                buildLogPanel(), buildOutputPanel());
+        bottom.setResizeWeight(0.62);
+        bottom.setDividerSize(2);
+        bottom.setBorder(null);
+        bottom.setBackground(BG_DARK);
+        panel.add(bottom, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JPanel buildLogPanel() {
         JPanel logPanel = new JPanel(new BorderLayout(0, 6));
         logPanel.setBackground(BG_DARK);
-        logPanel.add(sectionLabel("▸ EXECUTION LOG"), BorderLayout.NORTH);
+        logPanel.add(sectionLabel("▸ ACTIVITY"), BorderLayout.NORTH);
 
-        logArea = new JTextArea();
-        logArea.setFont(FONT_SMALL);
-        logArea.setBackground(BG_CARD);
-        logArea.setForeground(TEXT_PRIMARY);
-        logArea.setCaretColor(ACCENT_BLUE);
-        logArea.setEditable(false);
-        logArea.setLineWrap(true);
-        logArea.setBorder(new EmptyBorder(8, 10, 8, 10));
+        logArea = createTextArea();
 
         JScrollPane logScroll = new JScrollPane(logArea);
         styleScroll(logScroll);
         logPanel.add(logScroll, BorderLayout.CENTER);
-        panel.add(logPanel, BorderLayout.CENTER);
+        return logPanel;
+    }
 
-        return panel;
+    private JPanel buildOutputPanel() {
+        JPanel outputPanel = new JPanel(new BorderLayout(0, 6));
+        outputPanel.setBackground(BG_DARK);
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(BG_DARK);
+        header.add(sectionLabel("▸ PROGRAM CONSOLE"), BorderLayout.WEST);
+
+        JLabel hint = new JLabel("Shows user-facing output and input responses");
+        hint.setFont(FONT_SMALL);
+        hint.setForeground(TEXT_DIM);
+        header.add(hint, BorderLayout.EAST);
+
+        outputPanel.add(header, BorderLayout.NORTH);
+
+        outputArea = createTextArea();
+        outputArea.setForeground(new Color(204, 245, 229));
+
+        JScrollPane outputScroll = new JScrollPane(outputArea);
+        styleScroll(outputScroll);
+        outputPanel.add(outputScroll, BorderLayout.CENTER);
+        return outputPanel;
     }
 
     private JPanel buildRunningCard() {
@@ -275,7 +303,7 @@ public class Simulator extends JFrame {
 
         resetButton.addActionListener(e -> {
             stopAutoRun();
-            logArea.setText("");
+            clearConsole();
             resetHandler.run();
             runButton.setEnabled(true);
             pauseButton.setEnabled(false);
@@ -398,6 +426,15 @@ public class Simulator extends JFrame {
         SwingUtilities.invokeLater(() -> logArea.setText(""));
     }
 
+    public void clearConsole() {
+        SwingUtilities.invokeLater(() -> {
+            logArea.setText("");
+            if (outputArea != null) {
+                outputArea.setText("");
+            }
+        });
+    }
+
     public void stopAutoRun() {
         if (autoTimer != null && autoTimer.isRunning()) {
             autoTimer.stop();
@@ -412,7 +449,71 @@ public class Simulator extends JFrame {
         });
     }
 
+    @Override
+    public String requestInput(Process process, String prompt, String instruction) {
+        boolean wasAutoRunning = autoTimer != null && autoTimer.isRunning();
+        stopAutoRun();
+        setControlsPausedForInput();
+
+        if (process != null) {
+            setRunningProcess(process, instruction);
+        }
+
+        String processName = process == null ? "System" : "Process " + process.getPcb().getProcessID();
+        String value;
+        if (SwingUtilities.isEventDispatchThread()) {
+            value = showInputDialog(processName, prompt, instruction);
+        } else {
+            final String[] result = new String[1];
+            try {
+                SwingUtilities.invokeAndWait(() -> result[0] = showInputDialog(processName, prompt, instruction));
+            } catch (Exception e) {
+                value = fallbackTerminalInput(prompt);
+                appendProgramOutput(process, processName + " > " + value);
+                return value;
+            }
+            value = result[0];
+        }
+
+        appendProgramOutput(process, processName + " > " + value);
+        if (wasAutoRunning) {
+            resumeAutoRunAfterInput();
+        } else {
+            setControlsReady();
+        }
+        return value;
+    }
+
+    @Override
+    public void showProgramOutput(Process process, String output) {
+        appendProgramOutput(process, output);
+    }
+
+    @Override
+    public void showExecutionEvent(String message) {
+        log(message);
+    }
+
+    @Override
+    public void showError(String message) {
+        log(message);
+        appendProgramOutput(null, "Error: " + message.replace("[ERROR] ", ""));
+    }
+
     // ── UI Helpers ──
+    private JTextArea createTextArea() {
+        JTextArea area = new JTextArea();
+        area.setFont(FONT_SMALL);
+        area.setBackground(BG_CARD);
+        area.setForeground(TEXT_PRIMARY);
+        area.setCaretColor(ACCENT_BLUE);
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setBorder(new EmptyBorder(8, 10, 8, 10));
+        return area;
+    }
+
     private void styleTable(JTable table) {
         table.setBackground(BG_CARD);
         table.setForeground(TEXT_PRIMARY);
@@ -502,21 +603,28 @@ public class Simulator extends JFrame {
 
     private JButton makeButton(String text, Color accent) {
         JButton btn = new JButton(text);
+        Color normalBackground = blend(BG_PANEL, accent, 0.18f);
+        Color hoverBackground = blend(BG_PANEL, accent, 0.33f);
         btn.setFont(FONT_TITLE);
         btn.setForeground(accent);
-        btn.setBackground(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 20));
+        btn.setBackground(normalBackground);
         btn.setBorder(new CompoundBorder(
             new LineBorder(accent, 1),
             new EmptyBorder(6, 18, 6, 18)
         ));
+        btn.setOpaque(true);
+        btn.setContentAreaFilled(true);
+        btn.setRolloverEnabled(false);
         btn.setFocusPainted(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) {
-                btn.setBackground(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 50));
+                btn.setBackground(hoverBackground);
+                btn.repaint();
             }
             public void mouseExited(MouseEvent e) {
-                btn.setBackground(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 20));
+                btn.setBackground(normalBackground);
+                btn.repaint();
             }
         });
         return btn;
@@ -524,5 +632,108 @@ public class Simulator extends JFrame {
     
     public void setClockValue(int clock) {
         SwingUtilities.invokeLater(() -> clockLabel.setText("CLOCK: " + clock));
+    }
+
+    private void setControlsReady() {
+        SwingUtilities.invokeLater(() -> {
+            runButton.setEnabled(true);
+            pauseButton.setEnabled(false);
+            stepButton.setEnabled(true);
+        });
+    }
+
+    private void setControlsPausedForInput() {
+        SwingUtilities.invokeLater(() -> {
+            runButton.setEnabled(false);
+            pauseButton.setEnabled(false);
+            stepButton.setEnabled(false);
+        });
+    }
+
+    private void resumeAutoRunAfterInput() {
+        SwingUtilities.invokeLater(() -> {
+            runButton.setEnabled(false);
+            pauseButton.setEnabled(true);
+            stepButton.setEnabled(false);
+            if (autoTimer != null && !autoTimer.isRunning()) {
+                autoTimer.start();
+            }
+        });
+    }
+
+    private void appendProgramOutput(Process process, String message) {
+        String prefix = process == null ? "" : "P" + process.getPcb().getProcessID() + "  ";
+        SwingUtilities.invokeLater(() -> {
+            outputArea.append(prefix + message + "\n");
+            outputArea.setCaretPosition(outputArea.getDocument().getLength());
+        });
+    }
+
+    private String showInputDialog(String processName, String prompt, String instruction) {
+        JTextField inputField = new JTextField(18);
+        inputField.setFont(FONT_BODY);
+        inputField.setBackground(BG_PANEL);
+        inputField.setForeground(TEXT_PRIMARY);
+        inputField.setCaretColor(ACCENT_BLUE);
+        inputField.setBorder(new CompoundBorder(
+                new LineBorder(ACCENT_BLUE, 1),
+                new EmptyBorder(8, 10, 8, 10)
+        ));
+
+        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        panel.setBackground(BG_CARD);
+        panel.setBorder(new EmptyBorder(8, 4, 0, 4));
+
+        JLabel title = new JLabel(processName + " needs input");
+        title.setFont(FONT_TITLE);
+        title.setForeground(ACCENT_BLUE);
+
+        JLabel promptLabel = new JLabel(prompt);
+        promptLabel.setFont(FONT_BODY);
+        promptLabel.setForeground(TEXT_PRIMARY);
+
+        JLabel instructionLabel = new JLabel("Instruction: " + instruction);
+        instructionLabel.setFont(FONT_SMALL);
+        instructionLabel.setForeground(TEXT_DIM);
+
+        JPanel textPanel = new JPanel(new GridLayout(3, 1, 0, 6));
+        textPanel.setBackground(BG_CARD);
+        textPanel.add(title);
+        textPanel.add(promptLabel);
+        textPanel.add(instructionLabel);
+
+        panel.add(textPanel, BorderLayout.NORTH);
+        panel.add(inputField, BorderLayout.CENTER);
+
+        UIManager.put("OptionPane.background", BG_CARD);
+        UIManager.put("Panel.background", BG_CARD);
+
+        int option = JOptionPane.showConfirmDialog(
+                this,
+                panel,
+                "Program Input",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (option != JOptionPane.OK_OPTION) {
+            return "";
+        }
+
+        return inputField.getText().trim();
+    }
+
+    private String fallbackTerminalInput(String prompt) {
+        System.out.println(prompt + ":");
+        java.util.Scanner scanner = new java.util.Scanner(System.in);
+        return scanner.nextLine();
+    }
+
+    private Color blend(Color base, Color accent, float ratio) {
+        float clampedRatio = Math.max(0f, Math.min(1f, ratio));
+        int red = Math.round(base.getRed() * (1 - clampedRatio) + accent.getRed() * clampedRatio);
+        int green = Math.round(base.getGreen() * (1 - clampedRatio) + accent.getGreen() * clampedRatio);
+        int blue = Math.round(base.getBlue() * (1 - clampedRatio) + accent.getBlue() * clampedRatio);
+        return new Color(red, green, blue);
     }
 }

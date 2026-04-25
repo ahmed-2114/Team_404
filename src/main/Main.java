@@ -107,6 +107,7 @@ public class Main {
 
             gui = new Simulator(memory, readyQueue, blockedQueue, allProcesses);
             gui.setSchedulerName(schedulerName);
+            interpreter.setExecutionIO(gui);
 
             RRScheduler rr = null;
             HRRNScheduler hrrn = null;

@@ -241,24 +241,39 @@ public class StartupDialog extends JDialog {
 
     private JButton makeButton(String text, Color accent) {
         JButton btn = new JButton(text);
+        Color normalBackground = blend(BG_PANEL, accent, 0.18f);
+        Color hoverBackground = blend(BG_PANEL, accent, 0.33f);
         btn.setFont(FONT_TITLE);
         btn.setForeground(accent);
-        btn.setBackground(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 20));
+        btn.setBackground(normalBackground);
         btn.setBorder(new CompoundBorder(
             new LineBorder(accent, 1),
             new EmptyBorder(8, 20, 8, 20)
         ));
+        btn.setOpaque(true);
+        btn.setContentAreaFilled(true);
+        btn.setRolloverEnabled(false);
         btn.setFocusPainted(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         btn.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) {
-                btn.setBackground(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 50));
+                btn.setBackground(hoverBackground);
+                btn.repaint();
             }
             public void mouseExited(MouseEvent e) {
-                btn.setBackground(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 20));
+                btn.setBackground(normalBackground);
+                btn.repaint();
             }
         });
         return btn;
+    }
+
+    private Color blend(Color base, Color accent, float ratio) {
+        float clampedRatio = Math.max(0f, Math.min(1f, ratio));
+        int red = Math.round(base.getRed() * (1 - clampedRatio) + accent.getRed() * clampedRatio);
+        int green = Math.round(base.getGreen() * (1 - clampedRatio) + accent.getGreen() * clampedRatio);
+        int blue = Math.round(base.getBlue() * (1 - clampedRatio) + accent.getBlue() * clampedRatio);
+        return new Color(red, green, blue);
     }
 
     // ── Getters ──
